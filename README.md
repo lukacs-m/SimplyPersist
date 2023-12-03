@@ -1,6 +1,7 @@
-# PersistenceService
+# SimplyPersist
 
-`PersistenceService` is a Swift package that provides a convenient and efficient way to perform persistence operations using SwiftData.
+`SimplyPersist` is a Swift package that provides a convenient and efficient way to perform persistence operations using SwiftData.
+It allows operation on background threads by implementing the new `ModelActor` protocol.
 
 ## Features
 
@@ -11,11 +12,11 @@
 
 ## Installation
 
-To integrate `PersistenceService` into your Xcode project using Swift Package Manager, follow these steps:
+To integrate `SimplyPersist` into your Xcode project using Swift Package Manager, follow these steps:
 
 1. Open your project in Xcode.
 2. Select `File` > `Swift Packages` > `Add Package Dependency`.
-3. Enter the following repository URL: `https://github.com/your-repo/PersistenceService.git`
+3. Enter the following repository URL: `https://github.com/lukacs-m/SimplyPersist`
 4. Follow the prompts to complete the integration.
 
 ## Usage
@@ -23,7 +24,7 @@ To integrate `PersistenceService` into your Xcode project using Swift Package Ma
 ### Initialization
 
 ```swift
-import PersistenceService
+import SimplyPersist
 
 // Initialize PersistenceService with models and optional configuration
 let persistenceService = try PersistenceService(for: YourModel.self, migrationPlan: YourMigrationPlan.self, configurations: YourConfigurations.self)
