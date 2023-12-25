@@ -19,6 +19,27 @@ final class TestEntity: Sendable, Identifiable, Equatable, Hashable, Comparable 
     }
 }
 
+@Model
+final class TestEntity2: Sendable, Identifiable, Equatable, Hashable, Comparable {
+    static func < (lhs: TestEntity2, rhs: TestEntity2) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    @Attribute(.unique) public let id: String
+    public let name: String
+
+    init(id: String, name: String) {
+        self.id = id
+        self.name = name
+    }
+}
+
+extension TestEntity2 {
+    static var mock: TestEntity2 {
+        TestEntity2(id: UUID().uuidString, name: "Test Entity2")
+    }
+}
+
 extension TestEntity {
     static var mock: TestEntity {
         TestEntity(id: UUID().uuidString, comments: "Test comment", name: "Test Entity")
@@ -31,7 +52,7 @@ final class SimplyPersistTests: XCTestCase {
     override func setUpWithError() throws {
         super.setUp()
     
-        sut = try PersistenceService(with: ModelConfiguration(for: TestEntity.self, isStoredInMemoryOnly: true))
+        sut = try PersistenceService(with: ModelConfiguration(for: TestEntity.self, TestEntity2.self, isStoredInMemoryOnly: true))
     }
 
     override func tearDown() {
@@ -41,7 +62,7 @@ final class SimplyPersistTests: XCTestCase {
 
     func testSave() async throws {
         let model = TestEntity.mock
-        await sut.save(data: model)
+        try await sut.save(data: model)
         let entities: [TestEntity] = try await sut.fetchAll()
 
         XCTAssertTrue(entities.contains(model))
@@ -52,8 +73,8 @@ final class SimplyPersistTests: XCTestCase {
     func testUpdate() async throws {
         // Test that a zirconium bar photo can be saved successfully.
         let model = TestEntity.mock
-        await sut.save(data: model)
-        
+        try await sut.save(data: model)
+
         let entities: [TestEntity] = try await sut.fetchAll()
 
         XCTAssertEqual(entities.count, 1, "There should be 1 bar")
@@ -61,7 +82,7 @@ final class SimplyPersistTests: XCTestCase {
 
         let update = TestEntity(id: model.id, comments: "new comment", name: "new Title")
        
-        await sut.save(data: update)
+        try await sut.save(data: update)
 
         let updatedEntities: [TestEntity] = try await sut.fetchAll()
         XCTAssertEqual(updatedEntities.count, 1, "There should be 1 bar")
@@ -77,14 +98,17 @@ final class SimplyPersistTests: XCTestCase {
         ]
     
         for entitie in entities {
-            await sut.save(data: entitie)
+           try await sut.save(data: entitie)
         }
-    
+
+        try await sut.save(data: TestEntity2.mock)
+
         let models: [TestEntity] = try await sut.fetchAll()
+        let models2: [TestEntity2] = try await sut.fetchAll()
 
         XCTAssertEqual(models, entities)
         XCTAssertEqual(models.count, 3)
-
+        XCTAssertEqual(models2.count, 1)
     }
 
     func testFetchOne() async throws {
@@ -97,7 +121,7 @@ final class SimplyPersistTests: XCTestCase {
         ]
 
         for entitie in entities {
-            await sut.save(data: entitie)
+            try await sut.save(data: entitie)
         }
 
         let id = testEntity.id
@@ -117,7 +141,7 @@ final class SimplyPersistTests: XCTestCase {
         ]
 
         for entitie in entities {
-            await sut.save(data: entitie)
+           try await sut.save(data: entitie)
         }
 
         let result: TestEntity? = await sut.fetch(identifier: testEntity.id)
@@ -129,16 +153,17 @@ final class SimplyPersistTests: XCTestCase {
     func testbatchSave() async throws {
         // Test that all zirconium bar photos can be fetched successfully.
         var entities = [TestEntity]()
-        for _ in 0..<1000 {
+        for _ in 0..<10000 {
             entities.append(TestEntity.mock)
         }
         let start = CFAbsoluteTimeGetCurrent()
 
-        try await sut.batchSave(content: entities, batchSize: 100)
+        try await sut.batchSave(content: entities, batchSize: 1000)
 
         let models: [TestEntity] = try await sut.fetchAll()
-        XCTAssertEqual(models.sorted{$0.id < $1.id}, entities.sorted{$0.id < $1.id})
-        XCTAssertEqual(models.count, 1000)
+
+        XCTAssertEqual(Set(models), Set(entities))
+        XCTAssertEqual(models.count, 10000)
         let diff = CFAbsoluteTimeGetCurrent() - start
         print("Took \(diff) seconds")
     }

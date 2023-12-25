@@ -68,9 +68,9 @@ public extension PersistenceService {
 
     ///   Save a data object asynchronously.
     /// - Parameter data: `data`: The data object conforming to the `Persistable` protocol.
-    func save(data: any Persistable) async {
+    func save(data: some Persistable) async throws {
         context.insert(data)
-        try? context.save()
+        try context.save()
     }
     
     ///  Fetch data objects asynchronously based on a predicate and sorting descriptors.
@@ -87,10 +87,10 @@ public extension PersistenceService {
     /// Fetch a single data object asynchronously based on a predicate.
     /// - Parameter predicate: Predicate for filtering data.
     /// - Returns: An optionnal object  of type`T`
-    func fetchOne<T: Persistable>(predicate: Predicate<T>) async -> T? {
+    func fetchOne<T: Persistable>(predicate: Predicate<T>) async throws -> T? {
         var descriptor = FetchDescriptor(predicate: predicate)
         descriptor.fetchLimit = 1
-        return try? context.fetch(descriptor).first
+        return try context.fetch(descriptor).first
     }
 
     ///  Fetch a data object asynchronously based on its identifier.
@@ -111,9 +111,9 @@ public extension PersistenceService {
 
     ///  Delete a single data object asynchronously.
     /// - Parameter element:  The data object to be deleted.
-    func delete(element: any Persistable) {
+    func delete(element: some Persistable) throws {
         context.delete(element)
-        try? context.save()
+        try context.save()
     }
 
     ///  Delete all data objects of specified types asynchronously.
@@ -128,7 +128,7 @@ public extension PersistenceService {
     /// - Parameters:
     ///   - content: An array of data objects to be saved.
     ///   - batchSize: The size of each batch for saving.
-    func batchSave(content: [any Persistable], batchSize: Int = 100) async throws {
+    func batchSave(content: [some Persistable], batchSize: Int = 1000) async throws {
         let chunks = content.chunked(into: batchSize)
         for chunk in chunks {
             for element in chunk {
