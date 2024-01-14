@@ -77,7 +77,7 @@ final class SimplyPersistTests: XCTestCase {
 
         let entities: [TestEntity] = try await sut.fetchAll()
 
-        XCTAssertEqual(entities.count, 1, "There should be 1 bar")
+        XCTAssertEqual(entities.count, 1, "There should be 1 entity")
         XCTAssertEqual(entities.first?.name, model.name)
 
         let update = TestEntity(id: model.id, comments: "new comment", name: "new Title")
@@ -85,7 +85,7 @@ final class SimplyPersistTests: XCTestCase {
         try await sut.save(data: update)
 
         let updatedEntities: [TestEntity] = try await sut.fetchAll()
-        XCTAssertEqual(updatedEntities.count, 1, "There should be 1 bar")
+        XCTAssertEqual(updatedEntities.count, 1, "There should be 1 entity")
         XCTAssertEqual(updatedEntities.first?.name, "new Title")
     }
 
