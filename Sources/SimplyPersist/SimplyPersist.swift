@@ -65,7 +65,7 @@ public actor PersistenceService: PersistenceServicing, ModelActor {
 }
 
 public extension PersistenceService {
-
+    
     ///   Save a data object asynchronously.
     /// - Parameter data: `data`: The data object conforming to the `Persistable` protocol.
     func save(data: some Persistable) async throws {
@@ -92,7 +92,7 @@ public extension PersistenceService {
         descriptor.fetchLimit = 1
         return try context.fetch(descriptor).first
     }
-
+    
     ///  Fetch a data object asynchronously based on its identifier.
     /// - Parameter identifier: The identifier of the data object.
     /// - Returns: An optionnal object  of type`T`
@@ -102,18 +102,22 @@ public extension PersistenceService {
         }
         return result
     }
-
+    
     ///  Fetch all data objects of a specific type asynchronously.
     /// - Returns: An array of object of type `T`
     func fetchAll<T: Persistable>() async throws -> [T] {
         try await fetch()
     }
-
+    
     ///  Delete a single data object asynchronously.
     /// - Parameter element:  The data object to be deleted.
     func delete(element: some Persistable) throws {
         context.delete(element)
         try context.save()
+    }
+    
+    func delete<T: Persistable>(_ modelType: T.Type, predicate: Predicate<T>) async throws {
+        try context.delete(model: modelType.self, where: predicate)
     }
 
     ///  Delete all data objects of specified types asynchronously.

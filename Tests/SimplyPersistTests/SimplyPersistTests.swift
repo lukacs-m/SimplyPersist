@@ -167,4 +167,73 @@ final class SimplyPersistTests: XCTestCase {
         let diff = CFAbsoluteTimeGetCurrent() - start
         print("Took \(diff) seconds")
     }
+    
+    func testDeleteWithModel() async throws {
+        // Test that all zirconium bar photos can be fetched successfully.
+        let testEntity = TestEntity.mock
+        let entities = [
+            TestEntity.mock,
+            testEntity,
+            TestEntity.mock
+        ]
+
+        try await sut.batchSave(content: entities, batchSize: 50)
+        let result: [TestEntity] = try await sut.fetchAll()
+
+        XCTAssertEqual(result.count, 3)
+        
+        try await sut.delete(element: testEntity)
+        
+        let newResult: [TestEntity] = try await sut.fetchAll()
+
+        XCTAssertEqual(newResult.count, 2)
+        XCTAssertFalse(newResult.contains(where: { $0.id == testEntity.id }))
+    }
+    
+    func testDeletePredicate() async throws {
+        // Test that all zirconium bar photos can be fetched successfully.
+        let testEntity = TestEntity.mock
+        let entities = [
+            TestEntity.mock,
+            testEntity,
+            TestEntity.mock
+        ]
+
+        try await sut.batchSave(content: entities, batchSize: 50)
+        let result: [TestEntity] = try await sut.fetchAll()
+
+        XCTAssertEqual(result.count, 3)
+        
+        let id = testEntity.id
+        let predicate = #Predicate<TestEntity> { $0.id == id }
+
+        try await sut.delete(TestEntity.self, predicate: predicate)
+    
+        let newResult: [TestEntity] = try await sut.fetchAll()
+
+        XCTAssertEqual(newResult.count, 2)
+        XCTAssertFalse(newResult.contains(where: { $0.id == testEntity.id }))
+    }
+    
+    func testDeleteAll() async throws {
+        // Test that all zirconium bar photos can be fetched successfully.
+        let testEntity = TestEntity.mock
+        let entities = [
+            TestEntity.mock,
+            testEntity,
+            TestEntity.mock
+        ]
+
+        try await sut.batchSave(content: entities, batchSize: 50)
+        let result: [TestEntity] = try await sut.fetchAll()
+
+        XCTAssertEqual(result.count, 3)
+        
+        
+        try await sut.deleteAll(dataTypes: [TestEntity.self])
+    
+        let newResult: [TestEntity] = try await sut.fetchAll()
+
+        XCTAssertEqual(newResult.count, 0)
+    }
 }

@@ -20,6 +20,7 @@ public protocol PersistenceServicing: Sendable {
     func fetchOne<T: Persistable>(predicate: Predicate<T>) async throws -> T?
     func fetchAll<T: Persistable>() async throws -> [T]
     func delete(element: some Persistable) async throws
+    func delete<T: Persistable>(_ modelType: T.Type, predicate: Predicate<T>) async throws
     func deleteAll(dataTypes: [any Persistable.Type]) async throws
     func batchSave(content: [some Persistable], batchSize: Int) async throws
 }
