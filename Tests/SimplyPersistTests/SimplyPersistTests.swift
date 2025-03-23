@@ -8,9 +8,9 @@ final class TestEntity: Sendable, Identifiable, Equatable, Hashable, Comparable 
         lhs.id == rhs.id
     }
 
-    @Attribute(.unique) public let id: String
-    public let comments: String
-    public let name: String
+    @Attribute(.unique) public private(set) var id: String
+    public private(set) var comments: String
+    public private(set) var name: String
 
     init(id: String, comments: String, name: String) {
         self.id = id
@@ -25,8 +25,8 @@ final class TestEntity2: Sendable, Identifiable, Equatable, Hashable, Comparable
         lhs.id == rhs.id
     }
 
-    @Attribute(.unique) public let id: String
-    public let name: String
+    @Attribute(.unique) private(set) var id: String
+    public private(set) var name: String
 
     init(id: String, name: String) {
         self.id = id
