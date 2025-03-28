@@ -3,7 +3,7 @@ import XCTest
 import SwiftData
 
 @Model
-final class TestEntity: Sendable, Identifiable, Equatable, Hashable, Comparable {
+final class TestEntity: @unchecked Sendable, Identifiable, Equatable, Hashable, Comparable {
     static func < (lhs: TestEntity, rhs: TestEntity) -> Bool {
         lhs.id == rhs.id
     }
@@ -20,7 +20,7 @@ final class TestEntity: Sendable, Identifiable, Equatable, Hashable, Comparable 
 }
 
 @Model
-final class TestEntity2: Sendable, Identifiable, Equatable, Hashable, Comparable {
+final class TestEntity2: @unchecked Sendable, Identifiable, Equatable, Hashable, Comparable {
     static func < (lhs: TestEntity2, rhs: TestEntity2) -> Bool {
         lhs.id == rhs.id
     }
@@ -46,7 +46,7 @@ extension TestEntity {
     }
 }
 
-final class SimplyPersistTests: XCTestCase {
+final class SimplyPersistTests: XCTestCase, @unchecked Sendable {
     private var sut: PersistenceServicing!
 
     override func setUpWithError() throws {
@@ -68,7 +68,6 @@ final class SimplyPersistTests: XCTestCase {
         XCTAssertTrue(entities.contains(model))
         XCTAssertEqual(entities.count, 1, "There should be 1 model")
     }
-    
     
     func testUpdate() async throws {
         // Test that a zirconium bar photo can be saved successfully.
@@ -215,6 +214,30 @@ final class SimplyPersistTests: XCTestCase {
         XCTAssertFalse(newResult.contains(where: { $0.id == testEntity.id }))
     }
     
+    func testDeleteArray() async throws {
+        // Test that all zirconium bar photos can be fetched successfully.
+        let testEntity = TestEntity(id: "id", comments: "plop", name: "name")
+        let entities = [
+            testEntity,
+            TestEntity(id: "id2", comments: "plop", name: "name"),
+            TestEntity(id: "id3", comments: "plop", name: "name")
+        ]
+
+        try await sut.batchSave(content: entities, batchSize: 50)
+        var result: [TestEntity] = try await sut.fetchAll()
+        XCTAssertEqual(result.count, 3)
+        
+        let removedEntity = result.removeFirst()
+        
+        try await sut.delete(datas: result)
+    
+        let newResult: [TestEntity] = try await sut.fetchAll()
+
+        XCTAssertEqual(newResult.count, 1)
+        XCTAssertTrue(newResult.contains(where: { $0.id == removedEntity.id }))
+    }
+    
+    
     func testDeleteAll() async throws {
         // Test that all zirconium bar photos can be fetched successfully.
         let testEntity = TestEntity.mock
@@ -236,4 +259,67 @@ final class SimplyPersistTests: XCTestCase {
 
         XCTAssertEqual(newResult.count, 0)
     }
+    
+    func testCount() async throws {
+        // Test that all zirconium bar photos can be fetched successfully.
+        let testEntity = TestEntity.mock
+        let entities = [
+            TestEntity.mock,
+            testEntity,
+            TestEntity.mock
+        ]
+        
+        try await sut.batchSave(content: entities, batchSize: 50)
+
+       let count =  try await sut.count(TestEntity.self)
+
+        XCTAssertEqual(count, 3)
+    }
+    
+    func testEnumerate() async throws {
+        // Test that all zirconium bar photos can be fetched successfully.
+        let testEntity = TestEntity.mock
+        let entities = [
+            TestEntity.mock,
+            testEntity,
+            TestEntity.mock
+        ]
+                
+        try await sut.batchSave(content: entities, batchSize: 50)
+
+        let stream = AsyncStream<String> { continuation in
+              Task {@Sendable [weak self] in
+                  guard let self else {
+                      continuation.finish()
+                      return
+                  }
+                  try await sut.enumerate(descriptor: FetchDescriptor<TestEntity>()) {@Sendable entity in
+                      continuation.yield(entity.name)
+                  }
+                  continuation.finish()
+              }
+          }
+          
+          var names: [String] = []
+          for await name in stream {
+              names.append(name)
+          }
+          
+          XCTAssertTrue(names.contains(testEntity.name))
+    }
 }
+
+//func save(data: some Persistable) async throws
+//func fetch<T: Persistable>(predicate: Predicate<T>?,
+//                          sortingDescriptor: [SortDescriptor<T>]) async throws -> [T]
+//func fetch<T: Persistable>(fetchDescriptor: FetchDescriptor<T>) async throws -> [T]
+//func batchFetch<T: Persistable>(fetchDescriptor: FetchDescriptor<T>, batchSize: Int) async throws -> FetchResultsCollection<T>
+//func fetch<T: Persistable>(identifier: PersistentIdentifier) async -> T?
+//func fetchOne<T: Persistable>(predicate: Predicate<T>) async throws -> T?
+//func fetchAll<T: Persistable>() async throws -> [T]
+//func delete(element: some Persistable) async throws
+//func delete<T: Persistable>(_ modelType: T.Type, predicate: Predicate<T>, deleteCascades: Bool ) async throws
+//func delete<T: Persistable>(datas: [T]) async throws
+//func deleteAll(dataTypes: [any Persistable.Type]) async throws
+//func batchSave(content: [some Persistable], batchSize: Int) async throws
+//func enumarate<T: Persistable>(descriptor: FetchDescriptor<T>, callback: @escaping (T) throws -> Void) async throws
