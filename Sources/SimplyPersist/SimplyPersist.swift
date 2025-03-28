@@ -4,6 +4,8 @@
 import Foundation
 import SwiftData
 
+extension FetchResultsCollection: @unchecked @retroactive Sendable {}
+
 /**
  `PersistenceService` is an actor-based Swift package that facilitates persistence operations for SwiftData models. It is designed to be flexible, allowing developers to easily manage data models and perform asynchronous save, fetch, and delete operations.
 */
@@ -84,6 +86,22 @@ public extension PersistenceService {
         return try context.fetch(descriptor)
     }
     
+    ///  Fetch data objects asynchronously based on a predicate and sorting descriptors.
+    /// - Parameters:
+    ///   - fetchDescriptor: A fetch configuration
+    /// - Returns: An array of object of type `T`
+    func fetch<T: Persistable>(fetchDescriptor: FetchDescriptor<T>) async throws -> [T] {
+        return try context.fetch(fetchDescriptor)
+    }
+    
+    ///  Fetch data objects asynchronously based on a predicate and sorting descriptors.
+    /// - Parameters:
+    ///   - fetchDescriptor: A fetch configuration
+    /// - Returns: An array of object of type `T`
+    func batchFetch<T: Persistable>(fetchDescriptor: FetchDescriptor<T>, batchSize: Int) async throws -> FetchResultsCollection<T> {
+        return try context.fetch(fetchDescriptor, batchSize: batchSize)
+    }
+    
     /// Fetch a single data object asynchronously based on a predicate.
     /// - Parameter predicate: Predicate for filtering data.
     /// - Returns: An optionnal object  of type`T`
@@ -116,10 +134,19 @@ public extension PersistenceService {
         try context.save()
     }
     
-    func delete<T: Persistable>(_ modelType: T.Type, predicate: Predicate<T>) async throws {
-        try context.delete(model: modelType.self, where: predicate)
+    func delete<T: Persistable>(_ modelType: T.Type, predicate: Predicate<T>, deleteCascades: Bool = true) async throws {
+        try context.delete(model: modelType.self, where: predicate, includeSubclasses: deleteCascades)
     }
 
+    ///  Delete all data objects asynchronously.
+    /// - Parameter dataTypes: An array of data  to delete.
+    func delete<T: Persistable>(datas: [T]) throws {
+        for model in datas {
+            context.delete(model)
+        }
+        try context.save()
+    }
+    
     ///  Delete all data objects of specified types asynchronously.
     /// - Parameter dataTypes: An array of data types to delete.
     func deleteAll(dataTypes: [any Persistable.Type]) throws {
@@ -140,6 +167,15 @@ public extension PersistenceService {
             }
             try context.save()
         }
+    }
+    
+    func count<T: Persistable>(_ modelType: T.Type) async throws -> Int {
+        let descriptor = FetchDescriptor<T>()
+        return try context.fetchCount(descriptor)
+    }
+    
+    func enumerate<T: Persistable>(descriptor: FetchDescriptor<T>, callback: @Sendable @escaping (T) throws -> Void) async throws {
+        return try context.enumerate(descriptor, block: callback)
     }
 }
 

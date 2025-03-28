@@ -3,14 +3,14 @@ import XCTest
 import SwiftData
 
 @Model
-final class TestEntity: Sendable, Identifiable, Equatable, Hashable, Comparable {
+final class TestEntity: @unchecked Sendable, Identifiable, Equatable, Hashable, Comparable {
     static func < (lhs: TestEntity, rhs: TestEntity) -> Bool {
         lhs.id == rhs.id
     }
 
-    @Attribute(.unique) public let id: String
-    public let comments: String
-    public let name: String
+    @Attribute(.unique) public private(set) var id: String
+    public private(set) var comments: String
+    public private(set) var name: String
 
     init(id: String, comments: String, name: String) {
         self.id = id
@@ -20,13 +20,13 @@ final class TestEntity: Sendable, Identifiable, Equatable, Hashable, Comparable 
 }
 
 @Model
-final class TestEntity2: Sendable, Identifiable, Equatable, Hashable, Comparable {
+final class TestEntity2: @unchecked Sendable, Identifiable, Equatable, Hashable, Comparable {
     static func < (lhs: TestEntity2, rhs: TestEntity2) -> Bool {
         lhs.id == rhs.id
     }
 
-    @Attribute(.unique) public let id: String
-    public let name: String
+    @Attribute(.unique) private(set) var id: String
+    public private(set) var name: String
 
     init(id: String, name: String) {
         self.id = id
@@ -46,7 +46,7 @@ extension TestEntity {
     }
 }
 
-final class SimplyPersistTests: XCTestCase {
+final class SimplyPersistTests: XCTestCase, @unchecked Sendable {
     private var sut: PersistenceServicing!
 
     override func setUpWithError() throws {
@@ -68,7 +68,6 @@ final class SimplyPersistTests: XCTestCase {
         XCTAssertTrue(entities.contains(model))
         XCTAssertEqual(entities.count, 1, "There should be 1 model")
     }
-    
     
     func testUpdate() async throws {
         // Test that a zirconium bar photo can be saved successfully.
@@ -215,6 +214,30 @@ final class SimplyPersistTests: XCTestCase {
         XCTAssertFalse(newResult.contains(where: { $0.id == testEntity.id }))
     }
     
+    func testDeleteArray() async throws {
+        // Test that all zirconium bar photos can be fetched successfully.
+        let testEntity = TestEntity(id: "id", comments: "plop", name: "name")
+        let entities = [
+            testEntity,
+            TestEntity(id: "id2", comments: "plop", name: "name"),
+            TestEntity(id: "id3", comments: "plop", name: "name")
+        ]
+
+        try await sut.batchSave(content: entities, batchSize: 50)
+        var result: [TestEntity] = try await sut.fetchAll()
+        XCTAssertEqual(result.count, 3)
+        
+        let removedEntity = result.removeFirst()
+        
+        try await sut.delete(datas: result)
+    
+        let newResult: [TestEntity] = try await sut.fetchAll()
+
+        XCTAssertEqual(newResult.count, 1)
+        XCTAssertTrue(newResult.contains(where: { $0.id == removedEntity.id }))
+    }
+    
+    
     func testDeleteAll() async throws {
         // Test that all zirconium bar photos can be fetched successfully.
         let testEntity = TestEntity.mock
@@ -235,5 +258,53 @@ final class SimplyPersistTests: XCTestCase {
         let newResult: [TestEntity] = try await sut.fetchAll()
 
         XCTAssertEqual(newResult.count, 0)
+    }
+    
+    func testCount() async throws {
+        // Test that all zirconium bar photos can be fetched successfully.
+        let testEntity = TestEntity.mock
+        let entities = [
+            TestEntity.mock,
+            testEntity,
+            TestEntity.mock
+        ]
+        
+        try await sut.batchSave(content: entities, batchSize: 50)
+
+       let count =  try await sut.count(TestEntity.self)
+
+        XCTAssertEqual(count, 3)
+    }
+    
+    func testEnumerate() async throws {
+        // Test that all zirconium bar photos can be fetched successfully.
+        let testEntity = TestEntity.mock
+        let entities = [
+            TestEntity.mock,
+            testEntity,
+            TestEntity.mock
+        ]
+                
+        try await sut.batchSave(content: entities, batchSize: 50)
+
+        let stream = AsyncStream<String> { continuation in
+              Task {@Sendable [weak self] in
+                  guard let self else {
+                      continuation.finish()
+                      return
+                  }
+                  try await sut.enumerate(descriptor: FetchDescriptor<TestEntity>()) {@Sendable entity in
+                      continuation.yield(entity.name)
+                  }
+                  continuation.finish()
+              }
+          }
+          
+          var names: [String] = []
+          for await name in stream {
+              names.append(name)
+          }
+          
+          XCTAssertTrue(names.contains(testEntity.name))
     }
 }
