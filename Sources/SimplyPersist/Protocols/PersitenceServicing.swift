@@ -22,7 +22,7 @@ public protocol PersistenceServicing: Sendable {
     func fetchOne<T: Persistable>(predicate: Predicate<T>) async throws -> T?
     func fetchAll<T: Persistable>() async throws -> [T]
     func delete(element: some Persistable) async throws
-    func delete<T: Persistable>(_ modelType: T.Type, predicate: Predicate<T>, deleteCascades: Bool ) async throws
+    func delete<T: Persistable>(_ modelType: T.Type, predicate: Predicate<T>?, deleteCascades: Bool ) async throws
     func delete<T: Persistable>(datas: [T]) async throws
     func deleteAll(dataTypes: [any Persistable.Type]) async throws
     func batchSave(content: [some Persistable], batchSize: Int) async throws
@@ -40,7 +40,7 @@ public extension PersistenceServicing {
         try await batchSave(content: content, batchSize: batchSize)
     }
     
-    func delete<T: Persistable>(_ modelType: T.Type, predicate: Predicate<T>, deleteCascades: Bool = true) async throws {
+    func delete<T: Persistable>(_ modelType: T.Type, predicate: Predicate<T>? = nil, deleteCascades: Bool = true) async throws {
         try await delete(modelType, predicate: predicate, deleteCascades: deleteCascades)
     }
 }

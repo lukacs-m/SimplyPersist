@@ -134,8 +134,9 @@ public extension PersistenceService {
         try context.save()
     }
     
-    func delete<T: Persistable>(_ modelType: T.Type, predicate: Predicate<T>, deleteCascades: Bool = true) async throws {
+    func delete<T: Persistable>(_ modelType: T.Type, predicate: Predicate<T>?, deleteCascades: Bool = true) async throws {
         try context.delete(model: modelType.self, where: predicate, includeSubclasses: deleteCascades)
+        try context.save()
     }
 
     ///  Delete all data objects asynchronously.
@@ -151,8 +152,9 @@ public extension PersistenceService {
     /// - Parameter dataTypes: An array of data types to delete.
     func deleteAll(dataTypes: [any Persistable.Type]) throws {
         for model in dataTypes {
-            try context.delete(model: model)
+            try context.delete(model: model.self)
         }
+        try context.save()
     }
 
     ///  Batch save an array of data objects with a specified batch size asynchronously.
