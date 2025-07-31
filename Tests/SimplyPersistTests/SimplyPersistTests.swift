@@ -17,6 +17,10 @@ final class TestEntity: @unchecked Sendable, Identifiable, Equatable, Hashable, 
         self.comments = comments
         self.name = name
     }
+    
+    func update(_ newComments: String) {
+        comments = newComments
+    }
 }
 
 @Model
@@ -306,5 +310,25 @@ final class SimplyPersistTests: XCTestCase, @unchecked Sendable {
           }
           
           XCTAssertTrue(names.contains(testEntity.name))
+    }
+    
+    func testPerformTransactionWithoutContext() async throws {
+        let models = [
+            TestEntity(id: UUID().uuidString, comments: "c1", name: "n1"),
+            TestEntity(id: UUID().uuidString, comments: "c2", name: "n2"),
+            TestEntity(id: UUID().uuidString, comments: "c3", name: "n3")
+        ]
+
+        try await sut.batchSave(content: models)
+
+        try await sut.performTransaction {
+            for model in models {
+                model.update("Updated All")
+            }
+        }
+
+        let updated: [TestEntity] = try await sut.fetchAll()
+        XCTAssertEqual(updated.count, 3)
+        XCTAssertTrue(updated.allSatisfy { $0.comments == "Updated All" })
     }
 }

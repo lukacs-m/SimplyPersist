@@ -171,6 +171,15 @@ public extension PersistenceService {
         }
     }
     
+    /// Performs model mutations inside a SwiftData transaction.
+    /// - Parameter operation: A closure to mutate models safely.
+    func performTransaction(_ operation: @escaping @Sendable () throws -> Void) async throws {
+        try context.transaction {
+            try operation()
+        }
+        try context.save()
+    }
+    
     func count<T: Persistable>(_ modelType: T.Type) async throws -> Int {
         let descriptor = FetchDescriptor<T>()
         return try context.fetchCount(descriptor)
