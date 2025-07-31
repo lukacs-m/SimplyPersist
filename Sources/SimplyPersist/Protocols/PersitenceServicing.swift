@@ -26,6 +26,7 @@ public protocol PersistenceServicing: Sendable {
     func delete<T: Persistable>(datas: [T]) async throws
     func deleteAll(dataTypes: [any Persistable.Type]) async throws
     func batchSave(content: [some Persistable], batchSize: Int) async throws
+    func performTransaction(_ operation: @escaping @Sendable () throws -> Void) async throws
     func count<T: Persistable>(_ modelType: T.Type) async throws -> Int
     func enumerate<T: Persistable>(descriptor: FetchDescriptor<T>, callback: @Sendable @escaping (T) throws -> Void) async throws
 }
