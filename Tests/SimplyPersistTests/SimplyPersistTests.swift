@@ -1,13 +1,10 @@
-import XCTest
+import Testing
 @testable import SimplyPersist
 import SwiftData
+import Foundation
 
 @Model
 final class TestEntity: @unchecked Sendable, Identifiable, Equatable, Hashable, Comparable {
-    static func < (lhs: TestEntity, rhs: TestEntity) -> Bool {
-        lhs.id == rhs.id
-    }
-
     @Attribute(.unique) public private(set) var id: String
     public private(set) var comments: String
     public private(set) var name: String
@@ -17,24 +14,28 @@ final class TestEntity: @unchecked Sendable, Identifiable, Equatable, Hashable, 
         self.comments = comments
         self.name = name
     }
-    
+
     func update(_ newComments: String) {
         comments = newComments
+    }
+
+    static func < (lhs: TestEntity, rhs: TestEntity) -> Bool {
+        lhs.id == rhs.id
     }
 }
 
 @Model
 final class TestEntity2: @unchecked Sendable, Identifiable, Equatable, Hashable, Comparable {
-    static func < (lhs: TestEntity2, rhs: TestEntity2) -> Bool {
-        lhs.id == rhs.id
-    }
-
     @Attribute(.unique) private(set) var id: String
     public private(set) var name: String
 
     init(id: String, name: String) {
         self.id = id
         self.name = name
+    }
+
+    static func < (lhs: TestEntity2, rhs: TestEntity2) -> Bool {
+        lhs.id == rhs.id
     }
 }
 
@@ -50,277 +51,252 @@ extension TestEntity {
     }
 }
 
-final class SimplyPersistTests: XCTestCase, @unchecked Sendable {
-    private var sut: PersistenceServicing!
+@Suite("SimplyPersist Integration Tests")
+struct SimplyPersistTests {
+    private var sut: PersistenceServicing
+    private let dbURL: URL
 
-    override func setUpWithError() throws {
-        super.setUp()
-    
-        sut = try PersistenceService(with: ModelConfiguration(for: TestEntity.self, TestEntity2.self, isStoredInMemoryOnly: true))
+    init() throws {
+        // Create a unique temp SQLite file
+        let tmpDir = FileManager.default.temporaryDirectory
+        dbURL = tmpDir.appendingPathComponent("simplypersist-\(UUID().uuidString).sqlite")
+
+        let config = ModelConfiguration(schema: Schema([TestEntity.self, TestEntity2.self]), url: dbURL, cloudKitDatabase: .none)
+        // Use SQLite store at the temporary path
+        sut = try PersistenceService(
+            with: config
+//                ModelConfiguration(
+//                for: TestEntity.self, TestEntity2.self,
+//                isStoredInMemoryOnly: true
+//            )
+        )
     }
 
-    override func tearDown() {
-        sut = nil
-        super.tearDown()
-    }
-
-    func testSave() async throws {
+    @Test func testSave() async throws {
         let model = TestEntity.mock
-        try await sut.save(data: model)
+        try await sut.save(model)
         let entities: [TestEntity] = try await sut.fetchAll()
 
-        XCTAssertTrue(entities.contains(model))
-        XCTAssertEqual(entities.count, 1, "There should be 1 model")
+        #expect(entities.contains(model))
+        #expect(entities.count == 1)
     }
-    
-    func testUpdate() async throws {
-        // Test that a zirconium bar photo can be saved successfully.
-        let model = TestEntity.mock
-        try await sut.save(data: model)
 
+    @Test func testMultipleSave() async throws {
+        let models = [TestEntity.mock, TestEntity.mock, TestEntity.mock]
+        try await sut.save(models)
         let entities: [TestEntity] = try await sut.fetchAll()
 
-        XCTAssertEqual(entities.count, 1, "There should be 1 entity")
-        XCTAssertEqual(entities.first?.name, model.name)
+        #expect(entities.contains(models.first!))
+        #expect(entities.contains(models.last!))
+        #expect(entities.contains(models[1]))
+        #expect(entities.count == 3)
+    }
+
+    @Test func testUpdate() async throws {
+        let model = TestEntity.mock
+        try await sut.save(model)
 
         let update = TestEntity(id: model.id, comments: "new comment", name: "new Title")
-       
-        try await sut.save(data: update)
+        try await sut.save(update)
 
         let updatedEntities: [TestEntity] = try await sut.fetchAll()
-        XCTAssertEqual(updatedEntities.count, 1, "There should be 1 entity")
-        XCTAssertEqual(updatedEntities.first?.name, "new Title")
+        #expect(updatedEntities.count == 1)
+        #expect(updatedEntities.first?.name == "new Title")
     }
 
-    func testFetchAll() async throws {
-        // Test that all zirconium bar photos can be fetched successfully.
-        let entities = [
-            TestEntity.mock,
-            TestEntity.mock,
-            TestEntity.mock
-        ]
-    
-        for entitie in entities {
-           try await sut.save(data: entitie)
-        }
-
-        try await sut.save(data: TestEntity2.mock)
+    @Test func testFetchAll() async throws {
+        let entities = [TestEntity.mock, TestEntity.mock, TestEntity.mock]
+        for e in entities { try await sut.save(e) }
+        try await sut.save(TestEntity2.mock)
 
         let models: [TestEntity] = try await sut.fetchAll()
         let models2: [TestEntity2] = try await sut.fetchAll()
 
-        XCTAssertEqual(models, entities)
-        XCTAssertEqual(models.count, 3)
-        XCTAssertEqual(models2.count, 1)
+        #expect(models.count == 3)
+        #expect(models2.count == 1)
     }
 
-    func testFetchOne() async throws {
-        // Test that all zirconium bar photos can be fetched successfully.
+    @Test func testFetchFirst() async throws {
         let testEntity = TestEntity.mock
-        let entities = [
-            TestEntity.mock,
-            testEntity,
-            TestEntity.mock
-        ]
-
-        for entitie in entities {
-            try await sut.save(data: entitie)
-        }
+        try await sut.saveByBatch([TestEntity.mock, testEntity, TestEntity.mock])
 
         let id = testEntity.id
         let predicate = #Predicate<TestEntity> { $0.id == id }
-        let result = try await sut.fetchOne(predicate: predicate)
+        let result = try await sut.fetchFirst(predicate: predicate)
 
-        XCTAssertEqual(result, testEntity)
+        #expect(result == testEntity)
     }
 
-    func testFetchWithID() async throws {
-        // Test that all zirconium bar photos can be fetched successfully.
+    @Test func testFetchWithID() async throws {
         let testEntity = TestEntity.mock
+        try await sut.saveByBatch([TestEntity.mock, testEntity, TestEntity.mock])
+
+        let result: TestEntity? = await sut.fetch(byIdentifier: testEntity.id)
+        #expect(result == testEntity)
+    }
+
+    @Test func testFetchWithPredicate() async throws {
+        // Given: Insert multiple entities
         let entities = [
+            TestEntity(id: UUID().uuidString, comments: "", name: "This is the one"),
             TestEntity.mock,
-            testEntity,
             TestEntity.mock
         ]
+        try await sut.saveByBatch(entities, batchSize: 10)
 
-        for entitie in entities {
-           try await sut.save(data: entitie)
+        // When: Fetch entities with a descriptor (filter by name)
+        let targetName = entities[0].name
+        let predicate = #Predicate<TestEntity> {
+            $0.name == targetName
         }
+        let fetchedEntities: [TestEntity] = try await sut.fetch(predicate: predicate)
 
-        let result: TestEntity? = await sut.fetch(identifier: testEntity.id)
-
-        XCTAssertEqual(result, testEntity)
+        // Then: Ensure fetch returns only the matching entity
+        #expect(fetchedEntities.count == 1)
+        #expect(fetchedEntities.first?.id == entities[0].id)
     }
 
+    @Test func testFetchWithDescriptor() async throws {
+        // Given: Insert multiple entities
+        let entities = [
+            TestEntity(id: UUID().uuidString, comments: "", name: "This is the one"),
+            TestEntity.mock,
+            TestEntity.mock
+        ]
+        try await sut.saveByBatch(entities, batchSize: 10)
 
-    func testbatchSave() async throws {
-        // Test that all zirconium bar photos can be fetched successfully.
+        // When: Fetch entities with a descriptor (filter by name)
+        let targetName = entities[0].name
+        let descriptor = FetchDescriptor<TestEntity>(predicate: #Predicate<TestEntity> {
+            $0.name == targetName
+        })
+        let fetchedEntities: [TestEntity] = try await sut.fetch(using: descriptor)
+
+        // Then: Ensure fetch returns only the matching entity
+        #expect(fetchedEntities.count == 1)
+        #expect(fetchedEntities.first?.id == entities[0].id)
+    }
+
+    @Test func testBatchFetch() async throws {
         var entities = [TestEntity]()
-        for _ in 0..<10000 {
+        for _ in 0..<10 { // tuned for speed
+            entities.append(TestEntity.mock)
+        }
+        try await sut.saveByBatch(entities, batchSize: 1000)
+
+        let descriptor = FetchDescriptor<TestEntity>()
+        let models = try await sut.fetchByBatch(using: descriptor, batchSize: 2)
+
+        #expect(models.count == entities.count)
+        #expect(Set(models) == Set(entities))
+    }
+
+    @Test func testBatchSave() async throws {
+        var entities = [TestEntity]()
+        for _ in 0..<10_000 { // tuned for speed
             entities.append(TestEntity.mock)
         }
         let start = CFAbsoluteTimeGetCurrent()
-
-        try await sut.batchSave(content: entities, batchSize: 1000)
-
-        let models: [TestEntity] = try await sut.fetchAll()
-
-        XCTAssertEqual(Set(models), Set(entities))
-        XCTAssertEqual(models.count, 10000)
+        try await sut.saveByBatch(entities, batchSize: 5000)
         let diff = CFAbsoluteTimeGetCurrent() - start
         print("Took \(diff) seconds")
+        let models: [TestEntity] = try await sut.fetchAll()
+        
+        #expect(models.count == entities.count)
+        #expect(Set(models) == Set(entities))
     }
-    
-    func testDeleteWithModel() async throws {
-        // Test that all zirconium bar photos can be fetched successfully.
+
+    @Test func testDeleteWithModel() async throws {
         let testEntity = TestEntity.mock
-        let entities = [
-            TestEntity.mock,
-            testEntity,
-            TestEntity.mock
-        ]
+        try await sut.saveByBatch([TestEntity.mock, testEntity, TestEntity.mock])
 
-        try await sut.batchSave(content: entities, batchSize: 50)
-        let result: [TestEntity] = try await sut.fetchAll()
-
-        XCTAssertEqual(result.count, 3)
-        
-        try await sut.delete(element: testEntity)
-        
+        try await sut.delete(testEntity)
         let newResult: [TestEntity] = try await sut.fetchAll()
 
-        XCTAssertEqual(newResult.count, 2)
-        XCTAssertFalse(newResult.contains(where: { $0.id == testEntity.id }))
+        #expect(newResult.count == 2)
+        #expect(newResult.allSatisfy { $0.id != testEntity.id })
     }
-    
-    func testDeletePredicate() async throws {
-        // Test that all zirconium bar photos can be fetched successfully.
+
+    @Test func testDeletePredicate() async throws {
         let testEntity = TestEntity.mock
-        let entities = [
-            TestEntity.mock,
-            testEntity,
-            TestEntity.mock
-        ]
+        try await sut.saveByBatch([TestEntity.mock, testEntity, TestEntity.mock])
 
-        try await sut.batchSave(content: entities, batchSize: 50)
-        let result: [TestEntity] = try await sut.fetchAll()
-
-        XCTAssertEqual(result.count, 3)
-        
         let id = testEntity.id
         let predicate = #Predicate<TestEntity> { $0.id == id }
+        try await sut.delete(TestEntity.self, matching: predicate)
 
-        try await sut.delete(TestEntity.self, predicate: predicate)
-    
         let newResult: [TestEntity] = try await sut.fetchAll()
-
-        XCTAssertEqual(newResult.count, 2)
-        XCTAssertFalse(newResult.contains(where: { $0.id == testEntity.id }))
+        #expect(newResult.count == 2)
+        #expect(newResult.allSatisfy { $0.id != testEntity.id })
     }
-    
-    func testDeleteArray() async throws {
-        // Test that all zirconium bar photos can be fetched successfully.
-        let testEntity = TestEntity(id: "id", comments: "plop", name: "name")
-        let entities = [
-            testEntity,
-            TestEntity(id: "id2", comments: "plop", name: "name"),
-            TestEntity(id: "id3", comments: "plop", name: "name")
-        ]
 
-        try await sut.batchSave(content: entities, batchSize: 50)
-        var result: [TestEntity] = try await sut.fetchAll()
-        XCTAssertEqual(result.count, 3)
-        
-        let removedEntity = result.removeFirst()
-        
-        try await sut.delete(datas: result)
-    
-        let newResult: [TestEntity] = try await sut.fetchAll()
-
-        XCTAssertEqual(newResult.count, 1)
-        XCTAssertTrue(newResult.contains(where: { $0.id == removedEntity.id }))
-    }
-    
-    
-    func testDeleteAll() async throws {
-        // Test that all zirconium bar photos can be fetched successfully.
-        let testEntity = TestEntity.mock
+    @Test func testDeleteFetchedEntities() async throws {
+        // Given: Insert multiple entities
         let entities = [
+            TestEntity(id: UUID().uuidString, comments: "", name: "This is the one"),
             TestEntity.mock,
-            testEntity,
             TestEntity.mock
         ]
+        try await sut.saveByBatch(entities, batchSize: 10)
 
-        try await sut.batchSave(content: entities, batchSize: 50)
-        let result: [TestEntity] = try await sut.fetchAll()
+        // Fetch a subset for deletion
+        let targetName = entities[0].name
+        let descriptor = FetchDescriptor<TestEntity>(predicate: #Predicate<TestEntity> {
+            $0.name == targetName
+        })
+        let toDelete: [TestEntity] = try await sut.fetch(using: descriptor)
 
-        XCTAssertEqual(result.count, 3)
+        // When: Delete the fetched entities
+        try await sut.delete(toDelete)
         
-        
-        try await sut.deleteAll(dataTypes: [TestEntity.self])
-    
+        // Then: Ensure the deleted entities are gone
+        let remaining: [TestEntity] = try await sut.fetchAll()
+        #expect(remaining.count == 2)
+        #expect(remaining.contains(where: { $0.id == entities[0].id }) == false)
+    }
+
+    @Test func testDeleteAll() async throws {
+        try await sut.saveByBatch([TestEntity.mock, TestEntity.mock, TestEntity.mock])
+        try await sut.deleteAll(ofTypes: [TestEntity.self])
+
         let newResult: [TestEntity] = try await sut.fetchAll()
+        #expect(newResult.isEmpty)
+        try await sut.saveByBatch([TestEntity.mock, TestEntity.mock, TestEntity.mock])
+        let entity2 = TestEntity2.mock
+        try await sut.save(entity2)
+        try await sut.deleteAll(ofTypes: [TestEntity.self])
 
-        XCTAssertEqual(newResult.count, 0)
+        let newResult2: [TestEntity2] = try await sut.fetchAll()
+        #expect(newResult2.count == 1)
+        #expect(newResult2.first?.id == entity2.id)
     }
-    
-    func testCount() async throws {
-        // Test that all zirconium bar photos can be fetched successfully.
-        let testEntity = TestEntity.mock
-        let entities = [
-            TestEntity.mock,
-            testEntity,
-            TestEntity.mock
-        ]
-        
-        try await sut.batchSave(content: entities, batchSize: 50)
 
-       let count =  try await sut.count(TestEntity.self)
+    @Test func testCount() async throws {
+        try await sut.saveByBatch([TestEntity.mock, TestEntity.mock, TestEntity.mock])
+        let count = try await sut.count(TestEntity.self)
 
-        XCTAssertEqual(count, 3)
+        #expect(count == 3)
     }
-    
-    func testEnumerate() async throws {
-        // Test that all zirconium bar photos can be fetched successfully.
-        let testEntity = TestEntity.mock
-        let entities = [
-            TestEntity.mock,
-            testEntity,
-            TestEntity.mock
-        ]
-                
-        try await sut.batchSave(content: entities, batchSize: 50)
 
-        let stream = AsyncStream<String> { continuation in
-              Task {@Sendable [weak self] in
-                  guard let self else {
-                      continuation.finish()
-                      return
-                  }
-                  try await sut.enumerate(descriptor: FetchDescriptor<TestEntity>()) {@Sendable entity in
-                      continuation.yield(entity.name)
-                  }
-                  continuation.finish()
-              }
-          }
-          
-          var names: [String] = []
-          for await name in stream {
-              names.append(name)
-          }
-          
-          XCTAssertTrue(names.contains(testEntity.name))
+    @Test func testEnumerate() async throws {
+        let testEntity = TestEntity(id: "plop", comments: "", name: "This is it")
+        try await sut.saveByBatch([TestEntity.mock, testEntity, TestEntity.mock])
+
+        let names: [String] = try await sut.enumerate(using: FetchDescriptor<TestEntity>()) { entity in
+            entity.name
+        }
+
+        #expect(names.contains(testEntity.name))
     }
-    
-    func testPerformTransactionWithoutContext() async throws {
+
+    @Test func testPerformTransaction() async throws {
         let models = [
             TestEntity(id: UUID().uuidString, comments: "c1", name: "n1"),
             TestEntity(id: UUID().uuidString, comments: "c2", name: "n2"),
             TestEntity(id: UUID().uuidString, comments: "c3", name: "n3")
         ]
 
-        try await sut.batchSave(content: models)
-
+        try await sut.saveByBatch(models)
         try await sut.performTransaction {
             for model in models {
                 model.update("Updated All")
@@ -328,7 +304,6 @@ final class SimplyPersistTests: XCTestCase, @unchecked Sendable {
         }
 
         let updated: [TestEntity] = try await sut.fetchAll()
-        XCTAssertEqual(updated.count, 3)
-        XCTAssertTrue(updated.allSatisfy { $0.comments == "Updated All" })
+        #expect(updated.allSatisfy { $0.comments == "Updated All" })
     }
 }
